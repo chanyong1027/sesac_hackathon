@@ -25,7 +25,7 @@ public class MusicalService {
     }
 
     public List<Musical> fetchMusicalsFromApi(int cpage) {
-        return kopisApi.fetchAndParseMusicals(cpage);
+        return kopisApi.fetchMusicals(cpage);
     }
 
     public MusicalDetailResponseDto getMusicalDetail(String mt20id) {

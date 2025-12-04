@@ -1,170 +1,107 @@
 package com.example.festival.api;
 
 import com.example.festival.domain.Musical;
+import com.example.festival.dto.KopisMusicalDetailResponseDto;
+import com.example.festival.dto.KopisMusicalResponseDto;
 import com.example.festival.dto.MusicalDetailResponseDto;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.ParseException;
-import org.json.XML;
-import org.json.simple.parser.JSONParser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class KopisApi {
+
+    private static final int ROWS_PER_PAGE = 100;
+    private static final String PRF_STATE_RUNNING = "02";
+    private static final String SEOUL_CODE = "11";
+    private static final String CATEGORY_MUSICAL = "GGGA";
+    private static final String BASE_URL = "http://www.kopis.or.kr";
 
     @Value("${external.kopis}")
     private String apiKey;
+    private final RestClient restClient;
 
-    private static final int ROWS_PER_PAGE = 100;
-
-    public List<Musical> fetchAndParseMusicals(int cpage){
-        StringBuffer result = new StringBuffer();
-        String jsonPrintStr = null;
-        List<Musical> musicals = new CopyOnWriteArrayList<>();
-
-        try{
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
-            Date currentDate = new Date();
-            Calendar calendar = Calendar.getInstance();
-            calendar.setTime(currentDate);
-            calendar.add(Calendar.MONTH,1);
-
-            String startDate =  sdf.format(currentDate);
-            String endDate =  sdf.format(calendar.getTime());
-
-            String urlStr = "http://www.kopis.or.kr/openApi/restful/pblprfr?service=" +
-                    apiKey +
-                    "&stdate=" + startDate +
-                    "&eddate=" + endDate +
-                    "&cpage=" + cpage +
-                    "&rows=" + ROWS_PER_PAGE +
-                    "&prfstate=02&signgucode=11&shcate=GGGA";
-
-            URL url = new URL(urlStr);
-            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.connect();
-
-            /* XML to JSON 파싱 */
-            BufferedInputStream bis = new BufferedInputStream(urlConnection.getInputStream());
-            BufferedReader br = new BufferedReader(new InputStreamReader(bis, "UTF-8"));
-            String line;
-            while ((line = br.readLine()) != null) {
-                result.append(line);
-            }
-
-            org.json.JSONObject xmlToJson = XML.toJSONObject(result.toString());
-
-            // 2. org.json.JSONObject -> String으로 변환 (로그용 변수에도 할당)
-            jsonPrintStr = xmlToJson.toString();
-            log.info("KOPIS JSON Response: {}", jsonPrintStr);
-
-            /* 파싱 및 리스트 추가 */
-            JSONParser jsonParser = new JSONParser();
-            Object obj = jsonParser.parse(jsonPrintStr);
-            JSONObject jsonObject1 = (org.json.simple.JSONObject) obj;
-            JSONObject parseResult = (org.json.simple.JSONObject) jsonObject1.get("dbs");
-
-            Object dbObject = parseResult.get("db");
-            JSONArray parseMusicalList = new JSONArray();
-
-            if (dbObject instanceof org.json.simple.JSONObject) {
-                // 결과가 1개인 경우
-                parseMusicalList.add(dbObject);
-            } else if (dbObject instanceof JSONArray) {
-                // 결과가 2개 이상인 경우
-                parseMusicalList = (JSONArray) dbObject;
-            }
-
-            ObjectMapper objMapper = new ObjectMapper()
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-            for(int i = 0; i < parseMusicalList.size(); i++){
-                JSONObject parseMusical = (JSONObject) parseMusicalList.get(i);
-                Musical musical = objMapper.readValue(parseMusical.toString(), Musical.class);
-                musicals.add(musical);
-            }
-
-        }
-        catch (Exception e){
-            if (e instanceof NullPointerException || e instanceof ParseException) {
-                log.warn("KOPIS API 파싱 중 Null 또는 ParseException 발생 (데이터 끝으로 간주): cpage={}", cpage);
-            } else {
-                log.error("KOPIS API 호출 및 파싱 중 오류 발생: cpage={}", cpage, e);
-            }
-        }
-        return musicals;
+    public KopisApi(RestClient.Builder builder) {
+        this.restClient = builder
+                .baseUrl(BASE_URL)
+                .build();
     }
 
-    public MusicalDetailResponseDto fetchMusicalDetail(String mt20id) {
-        StringBuffer result = new StringBuffer();
-        String jsonPrintStr = null;
+    public List<Musical> fetchMusicals(int cpage){
 
-        try {
-            // [신규] 상세 조회 API 엔드포인트
-            String urlStr = "http://www.kopis.or.kr/openApi/restful/pblprfr/" +
-                    mt20id +
-                    "?service=" +
-                    apiKey;// mt20id로 조회
+        try{
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+            LocalDate now = LocalDate.now();
 
-            log.debug("KOPIS Detail API Request URL: {}", urlStr);
+            String startDate = now.format(formatter);
+            String endDate = now.plusMonths(1).format(formatter);
 
-            URL url = new URL(urlStr);
-            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.connect();
+            String uri = UriComponentsBuilder
+                    .fromPath("/openApi/restful/pblprfr")
+                    .queryParam("service", apiKey)
+                    .queryParam("stdate", startDate)
+                    .queryParam("eddate", endDate)
+                    .queryParam("cpage", cpage)
+                    .queryParam("rows", ROWS_PER_PAGE)
+                    .queryParam("prfstate", PRF_STATE_RUNNING)
+                    .queryParam("signgucode", SEOUL_CODE)
+                    .queryParam("shcate", CATEGORY_MUSICAL)
+                    .build(true)
+                    .toString();
 
-            // ... (BufferedReader로 result에 XML 담기) ...
-            BufferedInputStream bis = new BufferedInputStream(urlConnection.getInputStream());
-            BufferedReader br = new BufferedReader(new InputStreamReader(bis, "UTF-8"));
-            String line;
-            while ((line = br.readLine()) != null) {
-                result.append(line);
+            KopisMusicalResponseDto response= restClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(KopisMusicalResponseDto.class);
+
+            if (response == null || response.getMusicals() == null) {
+                return Collections.emptyList();
             }
 
-            // 1. XML -> org.json.JSONObject
-            org.json.JSONObject xmlToJson = XML.toJSONObject(result.toString());
+            return response.getMusicals();
+        }
+        catch (RestClientException e){
+            log.error("Kopis api 호출 중 오류 발생: cpage={}", cpage, e);
+            return Collections.emptyList();
+        }
+    }
 
-            // 2. String으로 변환
-            jsonPrintStr = xmlToJson.toString();
-            log.info("KOPIS Detail JSON Response: {}", jsonPrintStr);
+    public Optional<MusicalDetailResponseDto> fetchMusicalDetail(String mt20id) {
 
-            // 3. String -> org.json.simple.JSONObject
-            JSONParser jsonParser = new JSONParser();
-            Object obj = jsonParser.parse(jsonPrintStr);
-            JSONObject jsonObject1 = (JSONObject) obj;
-            JSONObject parseResult = (JSONObject) jsonObject1.get("dbs");
+        try {
+            String uri = UriComponentsBuilder
+                    .fromPath("/openApi/restful/pblprfr/{mt20id}")
+                    .queryParam("service", apiKey)
+                    .buildAndExpand(mt20id)
+                    .toString();
 
-            // [신규] 상세 API는 "db"가 객체 1개이므로 배열 처리가 필요 없음
-            JSONObject musicalDetailJson = (JSONObject) parseResult.get("db");
+            KopisMusicalDetailResponseDto response = restClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(KopisMusicalDetailResponseDto.class);
 
-            ObjectMapper objMapper = new ObjectMapper()
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            if (response == null || response.getDetail() == null || response.getDetail().isEmpty()) {
+                return Optional.empty();
+            }
 
-            // 4. JSON -> MusicalDetailResponseDto로 *바로* 변환
-            MusicalDetailResponseDto detailDto = objMapper.readValue(musicalDetailJson.toString(), MusicalDetailResponseDto.class);
+            return Optional.ofNullable(response.getDetail().get(0));
 
-            return detailDto;
-
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             log.error("KOPIS 상세 API 호출 및 파싱 중 오류 발생: mt20id={}", mt20id, e);
-            return null;
+            return Optional.empty();
         }
     }
 }
