@@ -16,9 +16,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class BatchTestController {
 
-    private final JobLauncher jobLauncher; // Spring Batch가 Job을 실행시키는 주체
-
-    // BatchConfig에 @Bean으로 등록한 Job(musicalFetchJob)을 주입받습니다.
+    private final JobLauncher jobLauncher;
     private final Job musicalFetchJob;
 
     /**

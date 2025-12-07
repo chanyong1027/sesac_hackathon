@@ -1,5 +1,6 @@
 package com.example.festival.dto;
 
+import com.example.festival.batch.dto.MusicalApiDto;
 import com.example.festival.domain.Musical;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
@@ -16,5 +17,5 @@ public class KopisMusicalResponseDto {
 
     @JacksonXmlElementWrapper(useWrapping = false)
     @JacksonXmlProperty(localName = "db")
-    private List<Musical> musicals;
+    private List<MusicalApiDto> musicals;
 }

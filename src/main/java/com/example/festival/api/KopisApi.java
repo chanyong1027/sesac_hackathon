@@ -1,12 +1,10 @@
 package com.example.festival.api;
 
+import com.example.festival.batch.dto.MusicalApiDto;
 import com.example.festival.domain.Musical;
 import com.example.festival.dto.KopisMusicalDetailResponseDto;
 import com.example.festival.dto.KopisMusicalResponseDto;
 import com.example.festival.dto.MusicalDetailResponseDto;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -14,8 +12,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URL;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -25,9 +21,9 @@ import java.util.*;
 public class KopisApi {
 
     private static final int ROWS_PER_PAGE = 100;
-    private static final String PRF_STATE_RUNNING = "02";
+    private static final String PRF_STATE_RUNNING = "01";
     private static final String SEOUL_CODE = "11";
-    private static final String CATEGORY_MUSICAL = "GGGA";
+    private static final String CATEGORY_MUSICAL = "CCCD";
     private static final String BASE_URL = "http://www.kopis.or.kr";
 
     @Value("${external.kopis}")
@@ -40,14 +36,14 @@ public class KopisApi {
                 .build();
     }
 
-    public List<Musical> fetchMusicals(int cpage){
+    public List<MusicalApiDto> fetchMusicals(int cpage){
 
         try{
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
             LocalDate now = LocalDate.now();
 
-            String startDate = now.format(formatter);
-            String endDate = now.plusMonths(1).format(formatter);
+            String startDate = now.plusMonths(1).format(formatter);
+            String endDate = now.plusMonths(2).format(formatter);
 
             String uri = UriComponentsBuilder
                     .fromPath("/openApi/restful/pblprfr")
@@ -79,7 +75,7 @@ public class KopisApi {
         }
     }
 
-    public Optional<MusicalDetailResponseDto> fetchMusicalDetail(String mt20id) {
+    public MusicalDetailResponseDto fetchMusicalDetail(String mt20id) {
 
         try {
             String uri = UriComponentsBuilder
@@ -94,14 +90,14 @@ public class KopisApi {
                     .body(KopisMusicalDetailResponseDto.class);
 
             if (response == null || response.getDetail() == null || response.getDetail().isEmpty()) {
-                return Optional.empty();
+                return null;
             }
 
-            return Optional.ofNullable(response.getDetail().get(0));
+            return response.getDetail().get(0);
 
         } catch (RestClientException e) {
             log.error("KOPIS 상세 API 호출 및 파싱 중 오류 발생: mt20id={}", mt20id, e);
-            return Optional.empty();
+            return null;
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.festival.service;
 
 import com.example.festival.api.KopisApi;
+import com.example.festival.batch.dto.MusicalApiDto;
 import com.example.festival.domain.Musical;
 import com.example.festival.dto.MusicalDetailResponseDto;
 import com.example.festival.dto.MusicalResponseDto;
@@ -24,14 +25,13 @@ public class MusicalService {
         return musicalPage.map(MusicalResponseDto::new);
     }
 
-    public List<Musical> fetchMusicalsFromApi(int cpage) {
+    public List<MusicalApiDto> fetchMusicalsFromApi(int cpage) {
         return kopisApi.fetchMusicals(cpage);
     }
 
     public MusicalDetailResponseDto getMusicalDetail(String mt20id) {
         MusicalDetailResponseDto musicalDetailResponseDto = kopisApi.fetchMusicalDetail(mt20id);
         if (musicalDetailResponseDto == null) {
-            // TODO: ID에 해당하는 뮤지컬이 없을 때 예외 처리
              throw new EntityNotFoundException("뮤지컬 정보를 찾을 수 없습니다.");
         }
         return musicalDetailResponseDto;
